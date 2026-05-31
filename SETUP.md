@@ -7,14 +7,15 @@
 ## Tabla de contenidos
 
 1. [Prerequisitos](#1-prerequisitos)
-2. [Configurar el entorno](#2-configurar-el-entorno)
-3. [Levantar la infraestructura](#3-levantar-la-infraestructura)
-4. [Conectar WhatsApp (escanear QR)](#4-conectar-whatsapp-escanear-qr)
-5. [Iniciar el agente](#5-iniciar-el-agente)
-6. [Verificar que todo funciona](#6-verificar-que-todo-funciona)
-7. [Modo presentación (todos los números)](#7-modo-presentación-todos-los-números)
-8. [Uso diario](#8-uso-diario)
-9. [Solución de problemas](#9-solución-de-problemas)
+2. [Preparar la base de conocimiento](#2-preparar-la-base-de-conocimiento)
+3. [Configurar el entorno](#3-configurar-el-entorno)
+4. [Levantar la infraestructura](#4-levantar-la-infraestructura)
+5. [Conectar WhatsApp (escanear QR)](#5-conectar-whatsapp-escanear-qr)
+6. [Iniciar el agente](#6-iniciar-el-agente)
+7. [Verificar que todo funciona](#7-verificar-que-todo-funciona)
+8. [Modo presentación (todos los números)](#8-modo-presentación-todos-los-números)
+9. [Uso diario](#9-uso-diario)
+10. [Solución de problemas](#10-solución-de-problemas)
 
 ---
 
@@ -36,7 +37,86 @@ También necesitás tener a mano:
 
 ---
 
-## 2. Configurar el entorno
+## 2. Preparar la base de conocimiento
+
+El agente no inventa respuestas: lee una carpeta de artículos en formato Markdown y los usa para diagnosticar y resolver problemas. Sin esta carpeta, el agente arranca pero no puede ayudar a ningún cliente.
+
+### Qué es y cómo funciona
+
+La base de conocimiento es simplemente **una carpeta con archivos `.md`** nombrados `PROB-001.md`, `PROB-002.md`, etc. Cada archivo describe un problema específico: qué lo causa, cómo detectarlo y cómo resolverlo.
+
+Al iniciar, el agente indexa todos los archivos en memoria. Cuando un cliente reporta un código de error, el agente busca el artículo correspondiente y le explica los pasos de solución al cliente por WhatsApp.
+
+### Opción A — Usar la base de conocimiento existente de BancoSol
+
+Si tenés acceso a la carpeta `Problemas\` del playbook de BancoSol (los 240 archivos `PROB-*.md`), copiala a cualquier ubicación de tu máquina. Por ejemplo:
+
+```
+C:\solvy-kb\Problemas\
+```
+
+Luego apuntá `OBSIDIAN_KB_PATH` a esa carpeta en el `.env` (ver Paso 3).
+
+### Opción B — Crear tu propia base de conocimiento
+
+Si querés adaptar el agente a otro banco u organización, creá una carpeta vacía y poblala con tus propios artículos siguiendo este formato:
+
+**Nombre del archivo:** `PROB-001.md` (numeración correlativa, tres dígitos)
+
+**Estructura del archivo:**
+
+```markdown
+# Título descriptivo del problema
+
+**Keywords:** palabra1 palabra2 palabra3 nombreapp bancoxyz autenticacion
+
+---
+producto: AppSol
+categoria: Autenticación
+severidad: S2
+---
+
+## Cuándo usar este manual
+- Señal principal: descripción de cuándo aparece este problema.
+- Validaciones específicas: qué revisar en el dispositivo o cuenta del cliente.
+
+## Pasos de Solución
+1. Primer paso para resolverlo.
+2. Segundo paso.
+3. Tercer paso si aplica.
+
+## Resultado esperado
+El cliente puede volver a operar normalmente luego de seguir los pasos indicados.
+```
+
+**Campos obligatorios** que el agente lee activamente:
+
+| Campo | Dónde va | Para qué sirve |
+|---|---|---|
+| `# Título` | Primera línea | Nombre del problema que se muestra al cliente |
+| `**Keywords:**` | Línea 3 | Búsqueda por palabras clave |
+| `producto:` | Frontmatter | Filtra artículos por aplicación del cliente |
+| `- Señal principal:` | Sección "Cuándo usar" | Contexto que se envía al LLM para generar respuesta |
+| `- Validaciones específicas:` | Sección "Cuándo usar" | Ídem |
+| `## Resultado esperado` | Sección propia | Ídem |
+
+**Valores válidos para `producto:`**
+
+| Valor en el artículo | Aplicación que reporta el cliente |
+|---|---|
+| `AppSol` | AppSol |
+| `Altoke` | Al Toque |
+| `Banca Web` | SolNet |
+
+> Si usás otro nombre de producto, el agente igualmente funciona pero no puede filtrar artículos por app y usará toda la base de conocimiento en la búsqueda.
+
+### ¿Cuántos artículos necesito para una demo?
+
+Con **5 a 10 artículos** bien escritos el agente ya demuestra su capacidad de búsqueda y resolución. No es necesario tener los 240 para una presentación.
+
+---
+
+## 3. Configurar el entorno
 
 Dentro de la carpeta `agent\` hay un archivo `.env` con todas las variables del sistema. Abrilo con cualquier editor de texto y completá los campos marcados:
 
@@ -70,7 +150,7 @@ CASE_STATUS_URL=    ← URL que verán los clientes para consultar su caso
 
 ---
 
-## 3. Levantar la infraestructura
+## 4. Levantar la infraestructura
 
 Desde la raíz del proyecto, abrí una terminal y ejecutá:
 
@@ -98,7 +178,7 @@ Todos deben aparecer con estado `Up`.
 
 ---
 
-## 4. Conectar WhatsApp (escanear QR)
+## 5. Conectar WhatsApp (escanear QR)
 
 Este es el único paso manual: vincular el número de WhatsApp del bot.
 
@@ -137,7 +217,7 @@ Esto crea la instancia en Evolution API y configura el webhook que conecta los m
 
 ---
 
-## 5. Iniciar el agente
+## 6. Iniciar el agente
 
 Con la infraestructura corriendo y el QR escaneado, iniciá el agente:
 
@@ -157,7 +237,7 @@ INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
 
 ---
 
-## 6. Verificar que todo funciona
+## 7. Verificar que todo funciona
 
 1. Desde un número habilitado en `ALLOWED_NUMBERS`, mandá un mensaje al número del bot.
 2. El bot responde con el saludo de Solvy en pocos segundos.
@@ -168,7 +248,7 @@ INFO:     Uvicorn running on http://0.0.0.0:3000 (Press CTRL+C to quit)
 
 ---
 
-## 7. Modo presentación (todos los números)
+## 8. Modo presentación (todos los números)
 
 Para que cualquier número pueda usar el bot durante la presentación, cambiá en `agent\.env`:
 
@@ -182,7 +262,7 @@ Reiniciá el agente (Ctrl+C y volvé a correr `python main.py`). A partir de ese
 
 ---
 
-## 8. Uso diario
+## 9. Uso diario
 
 Cada vez que retomes el trabajo necesitás dos cosas corriendo en paralelo:
 
@@ -209,7 +289,7 @@ docker compose down
 
 ---
 
-## 9. Solución de problemas
+## 10. Solución de problemas
 
 ### `setup.ps1` o scripts no se ejecutan: "no se puede cargar el archivo"
 
