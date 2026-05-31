@@ -1,0 +1,47 @@
+# Claude Code local settings
+.claude/
+
+# Variables de entorno y secretos
+.env
+.env.*
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Estado en tiempo de ejecución del agente
+agent/conversation_state.json
+
+# Datos persistentes de Docker (volúmenes montados)
+data/
+docker-data/
+
+# Docker override local
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
