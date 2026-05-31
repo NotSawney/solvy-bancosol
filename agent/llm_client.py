@@ -80,7 +80,7 @@ async def extract_form_data(text: str) -> dict:
             "Extraé estos datos si están presentes:\n"
             "- nombre: nombre completo\n"
             "- ci: número de carnet de identidad (puede incluir extensión: LP, SC, CB, OR, PT, BN, TJ, PD, CH)\n"
-            "- aplicacion: debe ser exactamente una de estas tres: AppSol, SolNet, Al Toque\n\n"
+            "- aplicacion: debe ser exactamente una de estas tres: AppSol, SolNet, Altoke\n\n"
             "Respondé SOLO con este JSON (usá null si no encontraste el campo):\n"
             '{"nombre": "...", "ci": "...", "aplicacion": "..."}'
         )
@@ -93,7 +93,7 @@ async def extract_form_data(text: str) -> dict:
         data = json.loads(match.group())
         # Normalize aplicacion to canonical casing
         app = (data.get("aplicacion") or "").strip()
-        canonical = {"appsol": "AppSol", "solnet": "SolNet", "al toque": "Al Toque", "altoque": "Al Toque"}
+        canonical = {"appsol": "AppSol", "solnet": "SolNet", "altoke": "Altoke", "al toke": "Al toke"}
         data["aplicacion"] = canonical.get(app.lower(), app if app else None)
         # Normalize nullish strings
         for k in ("nombre", "ci", "aplicacion"):

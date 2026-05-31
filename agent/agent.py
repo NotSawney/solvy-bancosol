@@ -24,6 +24,7 @@ from datetime import datetime
 
 import state_store as store
 from evolution_client import send_text
+from backend_client import open_case
 from llm_client import (
     is_frustrated,
     classify_main_choice,
@@ -42,6 +43,7 @@ ALLOWED_NUMBERS  = set(os.getenv("ALLOWED_NUMBERS", "59160879844").split(","))
 SUPPORT_NUMBER   = os.getenv("SUPPORT_NUMBER", "59173188382")
 SUPPORT_JID      = SUPPORT_NUMBER + "@s.whatsapp.net"
 INACTIVITY_HOURS = float(os.getenv("INACTIVITY_HOURS", "24"))
+CASE_STATUS_URL  = os.getenv("CASE_STATUS_URL", "[ENLACE]")
 
 RESET_WORDS = {"reset", "/reset", "reiniciar", "inicio", "empezar", "salir"}
 BACK_WORDS  = {"volver", "atras", "atrás", "regresar", "anterior", "/volver"}
@@ -147,7 +149,7 @@ MSG = {
     "01B_consultar_estado": (
         "Gracias por elegir 2️⃣ Consultar el estado de un caso.\n\n"
         "Podés hacer seguimiento a tu caso ingresando al siguiente enlace:\n\n"
-        "🔗 [ENLACE]\n\n"
+        f"🔗 {CASE_STATUS_URL}\n\n"
         "Tené a mano tu número de caso para consultar el estado actualizado.\n\n"
         "Gracias por comunicarte con Solvy, asistente virtual de BancoSol.\n"
         "Estoy aquí para orientarte cuando lo necesités."
@@ -458,6 +460,29 @@ def _build_support_msg(phone: str, conv: dict, form: dict, solutions_tried: list
     return "\n".join(parts)
 
 
+def _build_backend_payload(phone: str, conv: dict, form: dict) -> dict:
+    """Build the AgentReportRequest payload matching the Java DTO."""
+    started_at = conv.get("started_at", 0)
+    return {
+        "cliente": {
+            "nombre":     form.get("nombre"),
+            "ci":         form.get("ci"),
+            "telefono":   phone,
+            "aplicacion": form.get("aplicacion"),
+        },
+        "contacto_inicial": (
+            datetime.fromtimestamp(started_at).isoformat() if started_at else datetime.now().isoformat()
+        ),
+        "codigo_error": form.get("error_code"),
+        "descripcion_cliente": (
+            form.get("descripcion")
+            or f"El cliente reporta el código de error {form.get('error_code', 'desconocido')}."
+        ),
+        "resumen": form.get("resumen"),
+        "historial": conv.get("history", []),
+    }
+
+
 def _build_history_block(phone: str, conv: dict, form: dict) -> str:
     """Serialize the full session as JSON to embed inline in the support message."""
     started_at = conv.get("started_at", 0)
@@ -484,6 +509,7 @@ async def _notify_support_unresolved(phone: str, form: dict, solutions_tried: li
     header  = _build_support_msg(phone, conv, form, solutions_tried, "solución no efectiva")
     history = _build_history_block(phone, conv, form)
     await send_text(SUPPORT_JID, f"{header}\n\n\n📎 Historial JSON:\n{history}")
+    await open_case(_build_backend_payload(phone, conv, form))
 
 
 async def _notify_support_other(phone: str, form: dict):
@@ -491,3 +517,4 @@ async def _notify_support_other(phone: str, form: dict):
     header  = _build_support_msg(phone, conv, form, [], "otro problema sin código de error")
     history = _build_history_block(phone, conv, form)
     await send_text(SUPPORT_JID, f"{header}\n\n\n📎 Historial JSON:\n{history}")
+    await open_case(_build_backend_payload(phone, conv, form))

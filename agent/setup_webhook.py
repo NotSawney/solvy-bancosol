@@ -74,7 +74,7 @@ def setup():
     print(f"\n     O ábrelo directo en el browser (ya tiene el header por defecto):")
     print(f"     http://localhost:8080/manager  → instancia '{INSTANCE}' → Connect")
     print(f"\n  2. Inicia el agente:")
-    print(f"     cd D:\\evolution-prueba\\agent")
+    print(f"     cd D:\\evolution-solvy\\agent")
     print(f"     python main.py")
     print(f"\n  3. El agente escucha mensajes en http://localhost:{AGENT_PORT}/webhook")
     print(f"     Solo responde al número: {os.getenv('ALLOWED_NUMBER', '???')}")
