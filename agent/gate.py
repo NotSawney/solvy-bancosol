@@ -59,10 +59,28 @@ async def dispatch(handle_fn, remote_jid: str, text: str, msg_ts, reset_words: s
 
     async with lk:
         _cancelled.discard(phone)
-        await handle_fn(remote_jid, text, msg_ts)
+        try:
+            await handle_fn(remote_jid, text, msg_ts)
+        except Exception as e:
+            print(f"[Gate] ERROR {phone}: {e}")
+            _pending.pop(phone, None)
+            await send_text(remote_jid,
+                "⚠️ Ocurrió un error procesando tu mensaje.\n"
+                "Escribí *reiniciar* para comenzar una nueva consulta."
+            )
+            return
 
         # After the main task finishes, process whatever arrived while we were busy
         while phone in _pending:
             jid, t, ts = _pending.pop(phone)
             _cancelled.discard(phone)
-            await handle_fn(jid, t, ts)
+            try:
+                await handle_fn(jid, t, ts)
+            except Exception as e:
+                print(f"[Gate] ERROR {phone} (pending): {e}")
+                _pending.pop(phone, None)
+                await send_text(jid,
+                    "⚠️ Ocurrió un error procesando tu mensaje.\n"
+                    "Escribí *reiniciar* para comenzar una nueva consulta."
+                )
+                break

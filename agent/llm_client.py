@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import asyncio
 from openrouter import OpenRouter
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
@@ -29,13 +30,16 @@ FRUSTRATED_KEYWORDS = {
 
 async def call(messages: list[dict], max_tokens: int = 350) -> str:
     async with OpenRouter(api_key=OPENROUTER_API_KEY) as client:
-        response = await client.chat.send_async(
-            model=MODEL,
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
-            max_tokens=max_tokens,
-            temperature=0.4,
-            http_referer="https://bancosol.test",
-            x_open_router_title="BancoSol - Solvy",
+        response = await asyncio.wait_for(
+            client.chat.send_async(
+                model=MODEL,
+                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + messages,
+                max_tokens=max_tokens,
+                temperature=0.4,
+                http_referer="https://bancosol.test",
+                x_open_router_title="BancoSol - Solvy",
+            ),
+            timeout=30.0,
         )
     return response.choices[0].message.content.strip()
 

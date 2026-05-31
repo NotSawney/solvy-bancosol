@@ -40,6 +40,7 @@ from kb import (load_index, find_by_id, filter_by_product,
 from gate import is_cancelled
 
 ALLOWED_NUMBERS  = set(os.getenv("ALLOWED_NUMBERS", "59160879844").split(","))
+_ALLOW_ALL       = "*" in ALLOWED_NUMBERS
 SUPPORT_NUMBER   = os.getenv("SUPPORT_NUMBER", "59173188382")
 SUPPORT_JID      = SUPPORT_NUMBER + "@s.whatsapp.net"
 INACTIVITY_HOURS = float(os.getenv("INACTIVITY_HOURS", "24"))
@@ -190,7 +191,7 @@ async def _send(remote_jid: str, phone: str, text: str) -> None:
 async def handle_message(remote_jid: str, text: str, msg_ts: int | None = None):
     phone = remote_jid.replace("@s.whatsapp.net", "")
 
-    if phone not in ALLOWED_NUMBERS:
+    if not _ALLOW_ALL and phone not in ALLOWED_NUMBERS:
         print(f"[Solvy] Ignorado: {phone}")
         return
 
@@ -248,7 +249,11 @@ async def handle_message(remote_jid: str, text: str, msg_ts: int | None = None):
             await _send(remote_jid, phone, MSG["V03_respuesta_confusa"])
             return
 
-        choice = await classify_main_choice(text)
+        try:
+            choice = await classify_main_choice(text)
+        except Exception:
+            await _send(remote_jid, phone, MSG["V01_opcion_no_valida"])
+            return
         if choice == "help":
             await _send(remote_jid, phone, MSG["01_recibir_ayuda"])
             store.update(phone, stage="form_datos")
@@ -260,7 +265,17 @@ async def handle_message(remote_jid: str, text: str, msg_ts: int | None = None):
 
     # ── Formulario: nombre + CI + aplicación ─────────────────────────────────
     elif stage == "form_datos":
-        extracted = await extract_form_data(text)
+        # Pre-filtro: mensajes cortos sin dígitos (saludos, "ok", "hola", etc.)
+        # no contienen datos de formulario — re-prompt sin llamar al LLM
+        if len(text.split()) <= 2 and not re.search(r'\d', text):
+            await _send(remote_jid, phone, MSG["01_recibir_ayuda"])
+            return
+
+        try:
+            extracted = await extract_form_data(text)
+        except Exception:
+            await _send(remote_jid, phone, MSG["01_recibir_ayuda"])
+            return
         form = conv["form"].copy()
 
         for field in ("nombre", "ci", "aplicacion"):
@@ -288,7 +303,11 @@ async def handle_message(remote_jid: str, text: str, msg_ts: int | None = None):
             store.update(phone, stage="awaiting_main_choice")
             return
 
-        ptype = await classify_problem_type(text)
+        try:
+            ptype = await classify_problem_type(text)
+        except Exception:
+            await _send(remote_jid, phone, MSG["02_solicitar_tipo_problema"])
+            return
         if ptype == "error_code":
             await _send(remote_jid, phone, MSG["03A_solicitar_codigo_error"])
             store.update(phone, stage="awaiting_error_code")
@@ -304,7 +323,10 @@ async def handle_message(remote_jid: str, text: str, msg_ts: int | None = None):
     # ── Descripción libre (otro problema) ────────────────────────────────────
     elif stage == "awaiting_problem_description":
         form = {**conv["form"], "descripcion": text}
-        resumen = await summarize_problem(text, form.get("aplicacion", ""))
+        try:
+            resumen = await summarize_problem(text, form.get("aplicacion", ""))
+        except Exception:
+            resumen = ""
         if is_cancelled(phone):
             return
         form["resumen"] = resumen
@@ -328,7 +350,15 @@ async def handle_message(remote_jid: str, text: str, msg_ts: int | None = None):
 
     # ── ¿Se resolvió? ────────────────────────────────────────────────────────
     elif stage == "solution_presented":
-        resolution = await classify_resolution(text)
+        try:
+            resolution = await classify_resolution(text)
+        except Exception:
+            await _send(remote_jid, phone,
+                "No pude entender tu respuesta. ¿La solución te ayudó?\n\n"
+                "1️⃣ Sí, se resolvió\n"
+                "2️⃣ No, necesito más ayuda"
+            )
+            return
         if resolution == "resolved":
             await _send(remote_jid, phone, MSG["06A_cierre_encuesta"])
             store.update(phone, stage="awaiting_survey")
@@ -351,8 +381,15 @@ async def handle_message(remote_jid: str, text: str, msg_ts: int | None = None):
         rating = ratings.get(text.strip().lower())
         if rating:
             print(f"[Solvy] Encuesta {phone}: {rating}")
-        await _send(remote_jid, phone, "¡Gracias por tu valoración! ✨ ¡Hasta luego!")
-        store.reset(phone)
+            await _send(remote_jid, phone, "¡Gracias por tu valoración! ✨ ¡Hasta luego!")
+            store.reset(phone)
+        else:
+            await _send(remote_jid, phone,
+                "Por favor, calificá la atención con un número:\n\n"
+                "1️⃣ Buena\n"
+                "2️⃣ Regular\n"
+                "3️⃣ Mala"
+            )
 
     # ── Conversación terminada → reiniciar ───────────────────────────────────
     elif stage in ("done", "searching"):
